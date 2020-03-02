@@ -1,6 +1,7 @@
 from ctypes import *
 import math
 import random
+import cv2
 
 def sample(probs):
     s = sum(probs)
@@ -110,6 +111,10 @@ load_image.restype = IMAGE
 rgbgr_image = lib.rgbgr_image
 rgbgr_image.argtypes = [IMAGE]
 
+ndarray_image = lib.ndarray_to_image
+ndarray_image.argtypes = [POINTER(c_ubyte), POINTER(c_long), POINTER(c_long)]
+ndarray_image.restype = IMAGE
+
 predict_image = lib.network_predict_image
 predict_image.argtypes = [c_void_p, IMAGE]
 predict_image.restype = POINTER(c_float)
@@ -123,7 +128,7 @@ def classify(net, meta, im):
     return res
 
 def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45):
-    im = load_image(image, 0, 0)
+    im = nparray_to_image(image)
     num = c_int(0)
     pnum = pointer(num)
     predict_image(net, im)
@@ -138,19 +143,27 @@ def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45):
                 b = dets[j].bbox
                 res.append((meta.names[i], dets[j].prob[i], (b.x, b.y, b.w, b.h)))
     res = sorted(res, key=lambda x: -x[1])
+    print (res)
     free_image(im)
     free_detections(dets, num)
     return res
-    
+
+def nparray_to_image(img):
+    data = img.ctypes.data_as(POINTER(c_ubyte))
+    image = ndarray_image(data, img.ctypes.shape, img.ctypes.strides)
+
+    return image
+
 if __name__ == "__main__":
     #net = load_net("cfg/densenet201.cfg", "/home/pjreddie/trained/densenet201.weights", 0)
     #im = load_image("data/wolf.jpg", 0, 0)
     #meta = load_meta("cfg/imagenet1k.data")
     #r = classify(net, meta, im)
     #print r[:10]
-    net = load_net("cfg/tiny-yolo.cfg", "tiny-yolo.weights", 0)
-    meta = load_meta("cfg/coco.data")
-    r = detect(net, meta, "data/dog.jpg")
-    print r
+    net = load_net(b"cfg/yolov3-tiny.cfg", b"yolov3-tiny.weights", 0)
+    meta = load_meta(b"cfg/coco.data")
+    im = cv2.imread("data/dog.jpg")#,mode='RGB')
+    r = detect(net, meta, im)
+    print (r)
     
 
